@@ -5,7 +5,7 @@
 /frontend/node_modules
 /.pnp
 .pnp.js
-
+nodemon.json
 # testing
 /coverage
 
