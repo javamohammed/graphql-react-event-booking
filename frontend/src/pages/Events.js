@@ -12,6 +12,7 @@ class EventsPage extends React.Component {
         isLoading: false,
         selectedEvent: null
     }
+    isActive = false
     static contextType = AuthContext
     constructor(props){
         super(props)
@@ -25,13 +26,55 @@ class EventsPage extends React.Component {
         this.fetchEvents()
     //console.log(this.state.events)
     }
+    componentWillMount(){
+        this.isActive = true
+    }
     startCreateEventHandler = () => {
          this.setState({ creating: true})
     }
     modalCancelHandler = () => {
         this.setState({ creating: false, selectedEvent:null})
     }
-    bookEventHandler = ()=>{}
+    bookEventHandler = ()=>{
+        if (!this.context.token) {
+            this.setState({selectedEvent: null})
+            return
+        }
+        const requestBody = {
+            query: `mutation BookEvent($eventId: ID!){
+                         bookEvent(eventId: $eventId) {
+                            _id
+                            createdAt
+                            updatedAt
+                    }
+                }
+            `,
+            variables:{
+                eventId: this.state.selectedEvent._id
+            }
+        }
+        console.log(JSON.stringify(requestBody))
+        const token = this.context.token
+        fetch('http://localhost:8000/graphql', {
+            method: 'POST',
+            body: JSON.stringify(requestBody),
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: 'Bearer ' + token
+            }
+        }).then(res => {
+            if (res.status !== 200 && res.status !== 201) {
+                throw res
+            }
+            return res.json()
+        }).then(resData => {
+            console.log(resData)
+            this.setState({selectedEvent: null})
+        }).catch(err => {
+            this.setState({selectedEvent: null})
+             console.log(err)
+        })
+    }
 
     modalConfirmHandler = () => {
         this.setState({ creating: false})
@@ -47,22 +90,18 @@ class EventsPage extends React.Component {
         console.log(event)
 
         const requestBody = {
-            query: `mutation{
-                        createEvent(eventInput: {
-                                title: "${title}",
-                                price: ${price},
-                                date: "${date}",
-                                description: "${description}",
-                            }) {
-                            _id
-                            title
-                            description
-                            price
-                            date
-                        }
-                    }
-            `
-        }
+      query: `
+          mutation {
+            createEvent(eventInput: {title: "${title}", description: "${description}", price: ${price}, date: "${date}"}) {
+              _id
+              title
+              description
+              date
+              price
+            }
+          }
+        `
+    };
         const token = this.context.token
         console.log(this.context)
 
@@ -130,10 +169,14 @@ class EventsPage extends React.Component {
              }
              return res.json()
          }).then(resData => {
-            this.setState({events: resData.data.events, isLoading: false})
+             if(this.isActive){
+                 this.setState({events: resData.data.events, isLoading: false})
+             }
          }).catch(err => {
+             if (this.isActive) {
+                 this.setState({isLoading:false})
+            }
              console.log(err)
-             this.setState({isLoading:false})
          })
     }
     showDetailHandler = eventId =>{
@@ -184,7 +227,7 @@ class EventsPage extends React.Component {
                             canConfirm
                             onCancel={this.modalCancelHandler}
                             onConfirm={this.bookEventHandler}
-                            confirmText = "Book"
+                            confirmText = {this.context.token? "Book": "Confirm"}
                             >
                             <h1>{this.state.selectedEvent.title}</h1>
                             <h2>${this.state.selectedEvent.price} - {new Date(this.state.selectedEvent.date).toLocaleDateString()}</h2>
